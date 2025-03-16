@@ -35,158 +35,158 @@ class GeminiImageGenerator:
     CATEGORY = "Google-Gemini"
     
     def __init__(self):
-        """初始化日志系统和API密钥存储"""
-        self.log_messages = []  # 全局日志消息存储
-        # 获取节点所在目录
+        """Initialize the logging system and API key storage"""
+        self.log_messages = []  # Global log message storage
+        # Get the directory where the node is located
         self.node_dir = os.path.dirname(os.path.abspath(__file__))
         self.key_file = os.path.join(self.node_dir, "gemini_api_key.txt")
         
-        # 检查google-genai版本
+        # Check google-genai version
         try:
             import importlib.metadata
             genai_version = importlib.metadata.version('google-genai')
-            self.log(f"当前google-genai版本: {genai_version}")
+            self.log(f"Current google-genai version: {genai_version}")
             
-            # 检查PIL/Pillow版本
+            # Check PIL/Pillow version
             try:
                 import PIL
-                self.log(f"当前PIL/Pillow版本: {PIL.__version__}")
+                self.log(f"Current PIL/Pillow version: {PIL.__version__}")
             except Exception as e:
-                self.log(f"无法检查PIL/Pillow版本: {str(e)}")
+                self.log(f"Unable to check PIL/Pillow version: {str(e)}")
             
-            # 检查版本是否满足最低要求
+            # Check if the version meets the minimum requirements
             from packaging import version
             if version.parse(genai_version) < version.parse('1.5.0'):  
-                self.log("警告: google-genai版本过低，建议升级到最新版本")
-                self.log("建议执行: pip install -q -U google-genai")
+                self.log("Warning: google-genai version is too low, recommend upgrading to the latest version")
+                self.log("Suggested command: pip install -q -U google-genai")
             
-            # 检查PIL/Pillow版本是否满足要求
+            # Check if PIL/Pillow version meets requirements
             try:
                 if version.parse(PIL.__version__) < version.parse('9.5.0'):
-                    self.log("警告: PIL/Pillow版本过低，建议升级到9.5.0或更高版本")
-                    self.log("建议执行: pip install -U Pillow>=9.5.0")
+                    self.log("Warning: PIL/Pillow version is too low, recommend upgrading to 9.5.0 or higher")
+                    self.log("Suggested command: pip install -U Pillow>=9.5.0")
             except Exception:
                 pass
         except Exception as e:
-            self.log(f"无法检查版本信息: {e}")
+            self.log(f"Unable to check version information: {e}")
     
     def log(self, message):
-        """全局日志函数：记录到日志列表"""
+        """Global logging function: record to the log list"""
         if hasattr(self, 'log_messages'):
             self.log_messages.append(message)
         return message
     
     def get_api_key(self, user_input_key):
-        """获取API密钥，优先使用用户输入的密钥"""
-        # 如果用户输入了有效的密钥，使用并保存
+        """Get API key, prioritize user input key"""
+        # If the user entered a valid key, use and save it
         if user_input_key and len(user_input_key) > 10:
-            self.log("使用用户输入的API密钥")
-            # 保存到文件中
+            self.log("Using user input API key")
+            # Save to file
             try:
                 with open(self.key_file, "w") as f:
                     f.write(user_input_key)
-                self.log("已保存API密钥到节点目录")
+                self.log("API key saved to node directory")
             except Exception as e:
-                self.log(f"保存API密钥失败: {e}")
+                self.log(f"Failed to save API key: {e}")
             return user_input_key
             
-        # 如果用户没有输入，尝试从文件读取
+        # If user did not input, try to read from file
         if os.path.exists(self.key_file):
             try:
                 with open(self.key_file, "r") as f:
                     saved_key = f.read().strip()
                 if saved_key and len(saved_key) > 10:
-                    self.log("使用已保存的API密钥")
+                    self.log("Using saved API key")
                     return saved_key
             except Exception as e:
-                self.log(f"读取保存的API密钥失败: {e}")
+                self.log(f"Failed to read saved API key: {e}")
                 
-        # 如果都没有，返回空字符串
-        self.log("警告: 未提供有效的API密钥")
+        # If none available, return empty string
+        self.log("Warning: No valid API key provided")
         return ""
     
     def generate_empty_image(self, width, height):
-        """生成标准格式的空白RGB图像张量 - 确保ComfyUI兼容格式 [B,H,W,C]"""
-        # 创建一个符合ComfyUI标准的图像张量
-        # ComfyUI期望 [batch, height, width, channels] 格式!
+        """Generate standard format empty RGB image tensor - ensure ComfyUI compatible format [B,H,W,C]"""
+        # Create an image tensor that meets ComfyUI standards
+        # ComfyUI expects [batch, height, width, channels] format!
         empty_image = np.ones((height, width, 3), dtype=np.float32) * 0.2
         tensor = torch.from_numpy(empty_image).unsqueeze(0) # [1, H, W, 3]
         
-        self.log(f"创建ComfyUI兼容的空白图像: 形状={tensor.shape}, 类型={tensor.dtype}")
+        self.log(f"Created ComfyUI compatible empty image: shape={tensor.shape}, type={tensor.dtype}")
         return tensor
     
-    def validate_and_fix_tensor(self, tensor, name="图像"):
-        """验证并修复张量格式，确保完全兼容ComfyUI"""
+    def validate_and_fix_tensor(self, tensor, name="image"):
+        """Validate and fix tensor format, ensure full compatibility with ComfyUI"""
         try:
-            # 基本形状检查
+            # Basic shape check
             if tensor is None:
-                self.log(f"警告: {name} 是None")
+                self.log(f"Warning: {name} is None")
                 return None
                 
-            self.log(f"验证 {name}: 形状={tensor.shape}, 类型={tensor.dtype}, 设备={tensor.device}")
+            self.log(f"Validating {name}: shape={tensor.shape}, type={tensor.dtype}, device={tensor.device}")
             
-            # 确保形状正确: [B, C, H, W]
+            # Ensure correct shape: [B, C, H, W]
             if len(tensor.shape) != 4:
-                self.log(f"错误: {name} 形状不正确: {tensor.shape}")
+                self.log(f"Error: {name} has incorrect shape: {tensor.shape}")
                 return None
                 
             if tensor.shape[1] != 3:
-                self.log(f"错误: {name} 通道数不是3: {tensor.shape[1]}")
+                self.log(f"Error: {name} channel count is not 3: {tensor.shape[1]}")
                 return None
                 
-            # 确保类型为float32
+            # Ensure type is float32
             if tensor.dtype != torch.float32:
-                self.log(f"修正 {name} 类型: {tensor.dtype} -> torch.float32")
+                self.log(f"Correcting {name} type: {tensor.dtype} -> torch.float32")
                 tensor = tensor.to(dtype=torch.float32)
                 
-            # 确保内存连续
+            # Ensure memory is contiguous
             if not tensor.is_contiguous():
-                self.log(f"修正 {name} 内存布局: 使其连续")
+                self.log(f"Correcting {name} memory layout: making it contiguous")
                 tensor = tensor.contiguous()
                 
-            # 确保值范围在0-1之间
+            # Ensure value range is between 0-1
             min_val = tensor.min().item()
             max_val = tensor.max().item()
             
             if min_val < 0 or max_val > 1:
-                self.log(f"修正 {name} 值范围: [{min_val}, {max_val}] -> [0, 1]")
+                self.log(f"Correcting {name} value range: [{min_val}, {max_val}] -> [0, 1]")
                 tensor = torch.clamp(tensor, 0.0, 1.0)
                 
             return tensor
         except Exception as e:
-            self.log(f"验证张量时出错: {e}")
+            self.log(f"Error validating tensor: {e}")
             traceback.print_exc()
             return None
     
     def generate_image(self, prompt, api_key, model, width, height, temperature, seed=66666666, image=None):
-        """生成图像 - 使用简化的API密钥管理"""
+        """Generate image - using simplified API key management"""
         response_text = ""
         
-        # 重置日志消息
+        # Reset log messages
         self.log_messages = []
         
         try:
-            # 获取API密钥
+            # Get API key
             actual_api_key = self.get_api_key(api_key)
             
             if not actual_api_key:
-                error_message = "错误: 未提供有效的API密钥。请在节点中输入API密钥或确保已保存密钥。"
+                error_message = "Error: No valid API key provided. Please enter an API key in the node or ensure a key has been saved."
                 self.log(error_message)
-                full_text = "## 错误\n" + error_message + "\n\n## 使用说明\n1. 在节点中输入您的Google API密钥\n2. 密钥将自动保存到节点目录，下次可以不必输入"
+                full_text = "## Error\n" + error_message + "\n\n## Instructions\n1. Enter your Google API key in the node\n2. The key will be automatically saved to the node directory, so you won't need to enter it next time"
                 return (self.generate_empty_image(width, height), full_text)
             
-            # 创建客户端实例
+            # Create client instance
             client = genai.Client(api_key=actual_api_key)
             
-            # 处理种子值
+            # Handle seed value
             if seed == 0:
                 import random
                 seed = random.randint(1, 2**31 - 1)
-                self.log(f"生成随机种子值: {seed}")
+                self.log(f"Generated random seed value: {seed}")
             else:
-                self.log(f"使用指定的种子值: {seed}")
+                self.log(f"Using specified seed value: {seed}")
             
-            # 构建包含尺寸信息的提示
+            # Build prompt with dimension information
             aspect_ratio = width / height
             if aspect_ratio > 1:
                 orientation = "landscape (horizontal)"
@@ -197,169 +197,489 @@ class GeminiImageGenerator:
 
             simple_prompt = f"Create a detailed image of: {prompt}. Generate the image in {orientation} orientation with exact dimensions of {width}x{height} pixels. Ensure the composition fits properly within these dimensions without stretching or distortion."
             
-            # 配置生成参数，使用用户指定的温度值
+            # Configure generation parameters, using user-specified temperature
             gen_config = types.GenerateContentConfig(
                 temperature=temperature,
                 seed=seed,
                 response_modalities=['Text', 'Image']
             )
             
-            # 记录温度设置
-            self.log(f"使用温度值: {temperature}，种子值: {seed}")
+            # Log temperature setting
+            self.log(f"Using temperature: {temperature}, seed value: {seed}")
             
-            # 处理参考图像
+            # Process reference image
             contents = []
             has_reference = False
             
             if image is not None:
                 try:
-                    # 确保图像格式正确
-                    if len(image.shape) == 4 and image.shape[0] == 1:  # [1, H, W, 3] 格式
-                        # 获取第一帧图像
+                    # Ensure image format is correct
+                    if len(image.shape) == 4 and image.shape[0] == 1:  # [1, H, W, 3] format
+                        # Get first frame image
                         input_image = image[0].cpu().numpy()
                         
-                        # 转换为PIL图像
+                        # Convert to PIL image
                         input_image = (input_image * 255).astype(np.uint8)
                         pil_image = Image.fromarray(input_image)
                         
-                        self.log(f"参考图像处理成功，尺寸: {pil_image.width}x{pil_image.height}")
+                        self.log(f"Reference image processed successfully, dimensions: {pil_image.width}x{pil_image.height}")
                         
-                        # 直接在内存中处理，不保存为文件
+                        # Process directly in memory, don't save to file
                         img_byte_arr = BytesIO()
                         pil_image.save(img_byte_arr, format='PNG')
                         img_byte_arr.seek(0)
                         image_bytes = img_byte_arr.read()
                         
-                        # 添加图像部分和文本部分
+                        # Add image part and text part
                         img_part = {"inline_data": {"mime_type": "image/png", "data": image_bytes}}
                         txt_part = {"text": simple_prompt + " Use this reference image as style guidance."}
                         
-                        # 组合内容(图像在前，文本在后)
+                        # Combine content (image first, text after)
                         contents = [img_part, txt_part]
                         has_reference = True
-                        self.log("参考图像已添加到请求中")
+                        self.log("Reference image added to request")
                     else:
-                        self.log(f"参考图像格式不正确: {image.shape}")
+                        self.log(f"Reference image format incorrect: {image.shape}")
                         contents = simple_prompt
                 except Exception as img_error:
-                    self.log(f"参考图像处理错误: {str(img_error)}")
+                    self.log(f"Reference image processing error: {str(img_error)}")
                     contents = simple_prompt
             else:
-                # 没有参考图像，只使用文本
+                # No reference image, use text only
                 contents = simple_prompt
             
-            # 打印请求信息
-            self.log(f"请求Gemini API生成图像，种子值: {seed}, 包含参考图像: {has_reference}")
+            # Print request information
+            self.log(f"Requesting Gemini API to generate image, seed value: {seed}, includes reference image: {has_reference}")
             
-            # 调用API
+            # Call API
             response = client.models.generate_content(
                 model="models/gemini-2.0-flash-exp",
                 contents=contents,
                 config=gen_config
             )
             
-            # 响应处理
-            self.log("API响应接收成功，正在处理...")
+            # Process response
+            self.log("API response received successfully, processing...")
             
             if not hasattr(response, 'candidates') or not response.candidates:
-                self.log("API响应中没有candidates")
-                # 合并日志和返回值
-                full_text = "\n".join(self.log_messages) + "\n\nAPI返回了空响应"
+                self.log("No candidates in API response")
+                # Combine logs and return value
+                full_text = "\n".join(self.log_messages) + "\n\nAPI returned empty response"
                 return (self.generate_empty_image(width, height), full_text)
             
-            # 检查响应中是否有图像
+            # Check if response contains image
             image_found = False
             
-            # 遍历响应部分
+            # Iterate through response parts
             for part in response.candidates[0].content.parts:
-                # 检查是否为文本部分
+                # Check if it's a text part
                 if hasattr(part, 'text') and part.text is not None:
                     text_content = part.text
                     response_text += text_content
-                    self.log(f"API返回文本: {text_content[:100]}..." if len(text_content) > 100 else text_content)
+                    self.log(f"API returned text: {text_content[:100]}..." if len(text_content) > 100 else text_content)
                 
-                # 检查是否为图像部分
+                # Check if it's an image part
                 elif hasattr(part, 'inline_data') and part.inline_data is not None:
-                    self.log("API返回数据解析处理")
+                    self.log("Processing API returned data")
                     try:
-                        # 获取图像数据
+                        # Get image data
                         image_data = part.inline_data.data
-                        mime_type = part.inline_data.mime_type if hasattr(part.inline_data, 'mime_type') else "未知"
-                        self.log(f"图像数据类型: {type(image_data)}, MIME类型: {mime_type}, 数据长度: {len(image_data) if image_data else 0}")
+                        mime_type = part.inline_data.mime_type if hasattr(part.inline_data, 'mime_type') else "unknown"
+                        self.log(f"Image data type: {type(image_data)}, MIME type: {mime_type}, data length: {len(image_data) if image_data else 0}")
                         
-                        # 记录前8个字节用于诊断
+                        # Log first 8 bytes for diagnosis
                         if image_data and len(image_data) > 8:
                             hex_prefix = ' '.join([f'{b:02x}' for b in image_data[:8]])
-                            self.log(f"图像数据前8字节: {hex_prefix}")
+                            self.log(f"First 8 bytes of image data: {hex_prefix}")
                             
-                            # 检测Base64编码的PNG
+                            # Detect Base64 encoded PNG
                             if hex_prefix.startswith('69 56 42 4f 52'):
                                 try:
-                                    self.log("检测到Base64编码的PNG，正在解码...")
+                                    self.log("Detected Base64 encoded PNG, decoding...")
                                     base64_str = image_data.decode('utf-8', errors='ignore')
                                     image_data = base64.b64decode(base64_str)
-                                    self.log(f"Base64解码成功，新数据长度: {len(image_data)}")
+                                    self.log(f"Base64 decoding successful, new data length: {len(image_data)}")
                                 except Exception as e:
-                                    self.log(f"Base64解码失败: {str(e)}")
+                                    self.log(f"Base64 decoding failed: {str(e)}")
                         
-                        # BytesIO正确使用方法 - 修改为更直接的初始化方式
+                        # BytesIO correct usage method - modified for more direct initialization
                         try:
-                            # 直接使用字节数据初始化BytesIO，更简洁更兼容
+                            # Initialize BytesIO directly with byte data, more concise and compatible
                             buffer = BytesIO(image_data)
                             
-                            # 尝试打开图像
+                            # Try to open image
                             pil_image = Image.open(buffer)
-                            self.log(f"成功打开图像: {pil_image.width}x{pil_image.height}, 格式: {pil_image.format}")
+                            self.log(f"Successfully opened image: {pil_image.width}x{pil_image.height}, format: {pil_image.format}")
                             
-                            # 确保是RGB模式
+                            # Ensure RGB mode
                             if pil_image.mode != 'RGB':
                                 pil_image = pil_image.convert('RGB')
                             
-                            # 调整大小
+                            # Resize
                             if pil_image.width != width or pil_image.height != height:
                                 pil_image = pil_image.resize((width, height), Image.Resampling.LANCZOS)
                             
-                            # 转换为ComfyUI格式
+                            # Convert to ComfyUI format
                             img_array = np.array(pil_image).astype(np.float32) / 255.0
                             img_tensor = torch.from_numpy(img_array).unsqueeze(0)
                             
-                            self.log(f"图像转换为张量成功, 形状: {img_tensor.shape}")
+                            self.log(f"Image successfully converted to tensor, shape: {img_tensor.shape}")
                             
-                            # 合并日志和API返回文本
-                            full_text = "## 处理日志\n" + "\n".join(self.log_messages) + "\n\n## API返回\n" + response_text
+                            # Combine logs and API return text
+                            full_text = "## Processing Log\n" + "\n".join(self.log_messages) + "\n\n## API Response\n" + response_text
                             return (img_tensor, full_text)
                         
                         except Exception as e:
-                            self.log(f"使用BytesIO打开图像失败: {str(e)}")
-                            self.log("无法处理图像数据，使用默认空白图像")
+                            self.log(f"Failed to open image with BytesIO: {str(e)}")
+                            self.log("Unable to process image data, using default empty image")
                             img_tensor = self.generate_empty_image(width, height)
                     except Exception as e:
-                        self.log(f"图像处理错误: {e}")
-                        traceback.print_exc()  # 添加详细的错误追踪信息
+                        self.log(f"Image processing error: {e}")
+                        traceback.print_exc()  # Add detailed error trace information
             
-            # 没有找到图像数据，但可能有文本
+            # No image data found, but might have text
             if not image_found:
-                self.log("API响应中未找到图像数据，仅返回文本")
+                self.log("No image data found in API response, returning text only")
                 if not response_text:
-                    response_text = "API未返回任何图像或文本"
+                    response_text = "API did not return any image or text"
             
-            # 合并日志和API返回文本
-            full_text = "## 处理日志\n" + "\n".join(self.log_messages) + "\n\n## API返回\n" + response_text
+            # Combine logs and API return text
+            full_text = "## Processing Log\n" + "\n".join(self.log_messages) + "\n\n## API Response\n" + response_text
             return (self.generate_empty_image(width, height), full_text)
         
         except Exception as e:
-            error_message = f"处理过程中出错: {str(e)}"
-            self.log(f"Gemini图像生成错误: {str(e)}")
+            error_message = f"Error during processing: {str(e)}"
+            self.log(f"Gemini image generation error: {str(e)}")
             
-            # 合并日志和错误信息
-            full_text = "## 处理日志\n" + "\n".join(self.log_messages) + "\n\n## 错误\n" + error_message
+            # Combine logs and error information
+            full_text = "## Processing Log\n" + "\n".join(self.log_messages) + "\n\n## Error\n" + error_message
             return (self.generate_empty_image(width, height), full_text)
 
-# 注册节点
+# 複数画像対応のGeminiジェネレーター
+class GeminiMultiImageGenerator:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "prompt": ("STRING", {"multiline": True}),
+                "api_key": ("STRING", {"default": "", "multiline": False}),
+                "model": (["models/gemini-2.0-flash-exp"], {"default": "models/gemini-2.0-flash-exp"}),
+                "width": ("INT", {"default": 1024, "min": 512, "max": 2048, "step": 8}),
+                "height": ("INT", {"default": 1024, "min": 512, "max": 2048, "step": 8}),
+                "temperature": ("FLOAT", {"default": 1, "min": 0.0, "max": 2.0, "step": 0.05}),
+            },
+            "optional": {
+                "seed": ("INT", {"default": 66666666, "min": 0, "max": 2147483647}),
+                "image1": ("IMAGE",),
+                "image2": ("IMAGE",),
+                "image3": ("IMAGE",),
+                "image4": ("IMAGE",),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE", "STRING")
+    RETURN_NAMES = ("image", "API Respond")
+    FUNCTION = "generate_image_multi"
+    CATEGORY = "Google-Gemini"
+    
+    def __init__(self):
+        """Initialize the logging system and API key storage"""
+        self.log_messages = []  # Global log message storage
+        # Get the directory where the node is located
+        self.node_dir = os.path.dirname(os.path.abspath(__file__))
+        self.key_file = os.path.join(self.node_dir, "gemini_api_key.txt")
+        
+        # Check google-genai version
+        try:
+            import importlib.metadata
+            genai_version = importlib.metadata.version('google-genai')
+            self.log(f"Current google-genai version: {genai_version}")
+            
+            # Check PIL/Pillow version
+            try:
+                import PIL
+                self.log(f"Current PIL/Pillow version: {PIL.__version__}")
+            except Exception as e:
+                self.log(f"Unable to check PIL/Pillow version: {str(e)}")
+            
+            # Check if the version meets the minimum requirements
+            from packaging import version
+            if version.parse(genai_version) < version.parse('1.5.0'):  
+                self.log("Warning: google-genai version is too low, recommend upgrading to the latest version")
+                self.log("Suggested command: pip install -q -U google-genai")
+            
+            # Check if PIL/Pillow version meets requirements
+            try:
+                if version.parse(PIL.__version__) < version.parse('9.5.0'):
+                    self.log("Warning: PIL/Pillow version is too low, recommend upgrading to 9.5.0 or higher")
+                    self.log("Suggested command: pip install -U Pillow>=9.5.0")
+            except Exception:
+                pass
+        except Exception as e:
+            self.log(f"Unable to check version information: {e}")
+    
+    def log(self, message):
+        """Global logging function: record to the log list"""
+        if hasattr(self, 'log_messages'):
+            self.log_messages.append(message)
+        return message
+    
+    def get_api_key(self, user_input_key):
+        """Get API key, prioritize user input key"""
+        # If the user entered a valid key, use and save it
+        if user_input_key and len(user_input_key) > 10:
+            self.log("Using user input API key")
+            # Save to file
+            try:
+                with open(self.key_file, "w") as f:
+                    f.write(user_input_key)
+                self.log("API key saved to node directory")
+            except Exception as e:
+                self.log(f"Failed to save API key: {e}")
+            return user_input_key
+            
+        # If user did not input, try to read from file
+        if os.path.exists(self.key_file):
+            try:
+                with open(self.key_file, "r") as f:
+                    saved_key = f.read().strip()
+                if saved_key and len(saved_key) > 10:
+                    self.log("Using saved API key")
+                    return saved_key
+            except Exception as e:
+                self.log(f"Failed to read saved API key: {e}")
+                
+        # If none available, return empty string
+        self.log("Warning: No valid API key provided")
+        return ""
+    
+    def generate_empty_image(self, width, height):
+        """Generate standard format empty RGB image tensor - ensure ComfyUI compatible format [B,H,W,C]"""
+        # Create an image tensor that meets ComfyUI standards
+        # ComfyUI expects [batch, height, width, channels] format!
+        empty_image = np.ones((height, width, 3), dtype=np.float32) * 0.2
+        tensor = torch.from_numpy(empty_image).unsqueeze(0) # [1, H, W, 3]
+        
+        self.log(f"Created ComfyUI compatible empty image: shape={tensor.shape}, type={tensor.dtype}")
+        return tensor
+    
+    def process_image(self, image):
+        """Process a single ComfyUI image into bytes for API request"""
+        if image is None:
+            return None
+            
+        try:
+            # Ensure image format is correct
+            if len(image.shape) == 4 and image.shape[0] == 1:  # [1, H, W, 3] format
+                # Get first frame image
+                input_image = image[0].cpu().numpy()
+                
+                # Convert to PIL image
+                input_image = (input_image * 255).astype(np.uint8)
+                pil_image = Image.fromarray(input_image)
+                
+                # Process directly in memory
+                img_byte_arr = BytesIO()
+                pil_image.save(img_byte_arr, format='PNG')
+                img_byte_arr.seek(0)
+                image_bytes = img_byte_arr.read()
+                
+                self.log(f"Image processed successfully, dimensions: {pil_image.width}x{pil_image.height}")
+                return {"inline_data": {"mime_type": "image/png", "data": image_bytes}}
+            else:
+                self.log(f"Image format incorrect: {image.shape}")
+                return None
+        except Exception as e:
+            self.log(f"Image processing error: {str(e)}")
+            return None
+    
+    def generate_image_multi(self, prompt, api_key, model, width, height, temperature, seed=66666666, 
+                             image1=None, image2=None, image3=None, image4=None):
+        """Generate image with multiple reference images"""
+        response_text = ""
+        
+        # Reset log messages
+        self.log_messages = []
+        
+        try:
+            # Get API key
+            actual_api_key = self.get_api_key(api_key)
+            
+            if not actual_api_key:
+                error_message = "Error: No valid API key provided. Please enter an API key in the node or ensure a key has been saved."
+                self.log(error_message)
+                full_text = "## Error\n" + error_message + "\n\n## Instructions\n1. Enter your Google API key in the node\n2. The key will be automatically saved to the node directory, so you won't need to enter it next time"
+                return (self.generate_empty_image(width, height), full_text)
+            
+            # Create client instance
+            client = genai.Client(api_key=actual_api_key)
+            
+            # Handle seed value
+            if seed == 0:
+                import random
+                seed = random.randint(1, 2**31 - 1)
+                self.log(f"Generated random seed value: {seed}")
+            else:
+                self.log(f"Using specified seed value: {seed}")
+            
+            # Build prompt with dimension information
+            aspect_ratio = width / height
+            if aspect_ratio > 1:
+                orientation = "landscape (horizontal)"
+            elif aspect_ratio < 1:
+                orientation = "portrait (vertical)"
+            else:
+                orientation = "square"
+
+            simple_prompt = f"Create a detailed image of: {prompt}. Generate the image in {orientation} orientation with exact dimensions of {width}x{height} pixels. Ensure the composition fits properly within these dimensions without stretching or distortion."
+            
+            # Configure generation parameters
+            gen_config = types.GenerateContentConfig(
+                temperature=temperature,
+                seed=seed,
+                response_modalities=['Text', 'Image']
+            )
+            
+            # Log temperature setting
+            self.log(f"Using temperature: {temperature}, seed value: {seed}")
+            
+            # Process reference images
+            contents = []
+            image_parts = []
+            image_count = 0
+            
+            # Process each image input if provided
+            for idx, img in enumerate([image1, image2, image3, image4]):
+                if img is not None:
+                    processed = self.process_image(img)
+                    if processed:
+                        image_parts.append(processed)
+                        image_count += 1
+                        self.log(f"Reference image {idx+1} added to request")
+            
+            # Add text part with simple prompt
+            txt_part = {"text": simple_prompt}
+            if image_count > 0:
+                txt_part["text"] += f" Use these {image_count} reference images as style/content guidance."
+            
+            # Combine all parts (images first, then text)
+            contents = image_parts + [txt_part]
+            
+            # Print request information
+            self.log(f"Requesting Gemini API to generate image with {image_count} reference images, seed value: {seed}")
+            
+            # Call API
+            response = client.models.generate_content(
+                model="models/gemini-2.0-flash-exp",
+                contents=contents,
+                config=gen_config
+            )
+            
+            # Process response
+            self.log("API response received successfully, processing...")
+            
+            if not hasattr(response, 'candidates') or not response.candidates:
+                self.log("No candidates in API response")
+                # Combine logs and return value
+                full_text = "\n".join(self.log_messages) + "\n\nAPI returned empty response"
+                return (self.generate_empty_image(width, height), full_text)
+            
+            # Check if response contains image
+            image_found = False
+            
+            # Iterate through response parts
+            for part in response.candidates[0].content.parts:
+                # Check if it's a text part
+                if hasattr(part, 'text') and part.text is not None:
+                    text_content = part.text
+                    response_text += text_content
+                    self.log(f"API returned text: {text_content[:100]}..." if len(text_content) > 100 else text_content)
+                
+                # Check if it's an image part
+                elif hasattr(part, 'inline_data') and part.inline_data is not None:
+                    self.log("Processing API returned data")
+                    image_found = True
+                    try:
+                        # Get image data
+                        image_data = part.inline_data.data
+                        mime_type = part.inline_data.mime_type if hasattr(part.inline_data, 'mime_type') else "unknown"
+                        self.log(f"Image data type: {type(image_data)}, MIME type: {mime_type}, data length: {len(image_data) if image_data else 0}")
+                        
+                        # Log first 8 bytes for diagnosis
+                        if image_data and len(image_data) > 8:
+                            hex_prefix = ' '.join([f'{b:02x}' for b in image_data[:8]])
+                            self.log(f"First 8 bytes of image data: {hex_prefix}")
+                            
+                            # Detect Base64 encoded PNG
+                            if hex_prefix.startswith('69 56 42 4f 52'):
+                                try:
+                                    self.log("Detected Base64 encoded PNG, decoding...")
+                                    base64_str = image_data.decode('utf-8', errors='ignore')
+                                    image_data = base64.b64decode(base64_str)
+                                    self.log(f"Base64 decoding successful, new data length: {len(image_data)}")
+                                except Exception as e:
+                                    self.log(f"Base64 decoding failed: {str(e)}")
+                        
+                        # BytesIO correct usage method
+                        try:
+                            # Initialize BytesIO directly with byte data
+                            buffer = BytesIO(image_data)
+                            
+                            # Try to open image
+                            pil_image = Image.open(buffer)
+                            self.log(f"Successfully opened image: {pil_image.width}x{pil_image.height}, format: {pil_image.format}")
+                            
+                            # Ensure RGB mode
+                            if pil_image.mode != 'RGB':
+                                pil_image = pil_image.convert('RGB')
+                            
+                            # Resize
+                            if pil_image.width != width or pil_image.height != height:
+                                pil_image = pil_image.resize((width, height), Image.Resampling.LANCZOS)
+                            
+                            # Convert to ComfyUI format
+                            img_array = np.array(pil_image).astype(np.float32) / 255.0
+                            img_tensor = torch.from_numpy(img_array).unsqueeze(0)
+                            
+                            self.log(f"Image successfully converted to tensor, shape: {img_tensor.shape}")
+                            
+                            # Combine logs and API return text
+                            full_text = "## Processing Log\n" + "\n".join(self.log_messages) + "\n\n## API Response\n" + response_text
+                            return (img_tensor, full_text)
+                        
+                        except Exception as e:
+                            self.log(f"Failed to open image with BytesIO: {str(e)}")
+                            self.log("Unable to process image data, using default empty image")
+                            
+                    except Exception as e:
+                        self.log(f"Image processing error: {e}")
+                        traceback.print_exc()
+            
+            # No image data found, but might have text
+            if not image_found:
+                self.log("No image data found in API response, returning text only")
+                if not response_text:
+                    response_text = "API did not return any image or text"
+            
+            # Combine logs and API return text
+            full_text = "## Processing Log\n" + "\n".join(self.log_messages) + "\n\n## API Response\n" + response_text
+            return (self.generate_empty_image(width, height), full_text)
+        
+        except Exception as e:
+            error_message = f"Error during processing: {str(e)}"
+            self.log(f"Gemini multi-image generation error: {str(e)}")
+            
+            # Combine logs and error information
+            full_text = "## Processing Log\n" + "\n".join(self.log_messages) + "\n\n## Error\n" + error_message
+            return (self.generate_empty_image(width, height), full_text)
+
+# Register nodes
 NODE_CLASS_MAPPINGS = {
-    "Google-Gemini": GeminiImageGenerator
+    "Google-Gemini": GeminiImageGenerator,
+    "Google-Gemini-Multi": GeminiMultiImageGenerator
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "Google-Gemini": "Gemini 2.0 image"
+    "Google-Gemini": "Gemini 2.0 image",
+    "Google-Gemini-Multi": "Gemini 2.0 multi-image"
 } 
